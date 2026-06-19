@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AOI長泉倉庫進捗ダッシュボード</title>
+  <style>
+    * { box-sizing: border-box; font-family: "Yu Gothic", "Meiryo", sans-serif; }
+    body { margin: 0; background: #f4f6f8; color: #1f2937; overflow: hidden; }
+    .app { height: 100vh; display: flex; flex-direction: column; padding: 16px 20px; gap: 12px; }
+    .header {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      background: #fff; border: 1px solid #d9dee5; border-radius: 10px; padding: 12px 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05); flex-shrink: 0;
+    }
+    .title { font-size: 24px; font-weight: 700; white-space: nowrap; }
+    .filter { display: flex; align-items: center; gap: 10px; }
+    label { font-weight: 700; }
+    select {
+      width: 170px; padding: 7px 10px; font-size: 15px;
+      border: 1px solid #b8c0cc; border-radius: 6px; background: #fff;
+    }
+
+    .fixed-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .summary-box {
+      background: #fff; border: 1px solid #d9dee5; border-radius: 10px;
+      padding: 12px 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px;
+    }
+    .summary-title { font-size: 17px; font-weight: 700; }
+    .summary-count { font-size: 18px; font-weight: 700; color: #374151; }
+    .summary-rate { font-size: 24px; font-weight: 800; color: #2563eb; }
+
+    .table-card {
+      background: #fff; border: 1px solid #d9dee5; border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .table-toolbar {
+      padding: 10px 14px; border-bottom: 1px solid #d9dee5;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      flex-shrink: 0;
+    }
+    .toolbar-left { font-weight: 700; }
+    .toolbar-right { font-size: 13px; color: #4b5563; }
+
+    .table-wrap { overflow: auto; flex: 1; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 16px; min-width: 1050px; }
+    th {
+      position: sticky; top: 0; z-index: 2;
+      background: #eef2f7; border-bottom: 1px solid #cfd6df; border-right: 1px solid #d9dee5;
+      padding: 10px; text-align: left; white-space: nowrap; cursor: pointer; user-select: none;
+    }
+    th:first-child, td:first-child { border-left: none; }
+    td {
+      border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;
+      padding: 10px; background: #fff; height: 44px;
+    }
+    td.number { text-align: right; }
+    td.center { text-align: center; }
+
+    .serial-complete { background: #dcfce7; color: #166534; font-weight: 700; }
+    .serial-incomplete { background: #fff; color: #1f2937; font-weight: 700; }
+    .status {
+      display: inline-block; min-width: 76px; text-align: center; padding: 4px 10px;
+      border-radius: 999px; font-weight: 700; font-size: 14px;
+    }
+    .status.done { background: #dcfce7; color: #166534; }
+    .status.not-done { background: #fee2e2; color: #991b1b; }
+
+    .sort-mark { font-size: 12px; color: #2563eb; margin-left: 6px; }
+    .date-badge {
+      font-size: 15px; font-weight: 700; background: #eef2ff; color: #1d4ed8;
+      padding: 6px 10px; border-radius: 999px; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="title">AOI長泉倉庫進捗ダッシュボード</div>
+      <div class="filter">
+        <label for="shipDate">出荷日</label>
+        <select id="shipDate" onchange="renderDashboard()"></select>
+        <span class="date-badge" id="targetDateBadge"></span>
+      </div>
+    </div>
+
+    <div class="fixed-summary">
+      <div class="summary-box">
+        <div class="summary-title">集合梱包</div>
+        <div class="summary-count" id="packCount">-</div>
+        <div class="summary-rate" id="packRate">-</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-title">釣銭機系</div>
+        <div class="summary-count" id="cashCount">-</div>
+        <div class="summary-rate" id="cashRate">-</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-title">全体</div>
+        <div class="summary-count" id="totalCount">-</div>
+        <div class="summary-rate" id="totalRate">-</div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div class="toolbar-left">FFC出荷NO別 進捗詳細</div>
+        <div class="toolbar-right">※「集合梱包」「釣銭機系」「全体ステータス」の見出しクリックで 完了／未完 ソート</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="setSort('ffcShipmentNo')">FFC出荷NO<span id="sort-ffcShipmentNo" class="sort-mark"></span></th>
+              <th onclick="setSort('storeNo')">店番<span id="sort-storeNo" class="sort-mark"></span></th>
+              <th onclick="setSort('storeName')">店舗名<span id="sort-storeName" class="sort-mark"></span></th>
+              <th onclick="setSort('packStatus')">集合梱包 シリアル取得<span id="sort-packStatus" class="sort-mark"></span></th>
+              <th onclick="setSort('cashStatus')">釣銭機系 シリアル取得<span id="sort-cashStatus" class="sort-mark"></span></th>
+              <th onclick="setSort('allStatus')">全体ステータス<span id="sort-allStatus" class="sort-mark"></span></th>
+            </tr>
+          </thead>
+          <tbody id="dashboardBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const mockData = [
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200001", storeNo:"11",  storeName:"大仁店",   packDone:4, packPlan:4, cashDone:4, cashPlan:4 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200002", storeNo:"22",  storeName:"三島店",   packDone:3, packPlan:3, cashDone:3, cashPlan:3 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200003", storeNo:"35",  storeName:"沼津店",   packDone:2, packPlan:5, cashDone:1, cashPlan:5 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200004", storeNo:"48",  storeName:"富士店",   packDone:6, packPlan:6, cashDone:2, cashPlan:6 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200005", storeNo:"52",  storeName:"静岡店",   packDone:5, packPlan:5, cashDone:5, cashPlan:5 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200006", storeNo:"67",  storeName:"清水店",   packDone:1, packPlan:4, cashDone:4, cashPlan:4 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200007", storeNo:"74",  storeName:"藤枝店",   packDone:0, packPlan:3, cashDone:0, cashPlan:3 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200008", storeNo:"86",  storeName:"焼津店",   packDone:7, packPlan:7, cashDone:7, cashPlan:7 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200009", storeNo:"91",  storeName:"島田店",   packDone:3, packPlan:4, cashDone:4, cashPlan:4 },
+      { shipDate:"2026-06-18", ffcShipmentNo:"F000200010", storeNo:"105", storeName:"掛川店",   packDone:2, packPlan:2, cashDone:2, cashPlan:2 },
+
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200011", storeNo:"118", storeName:"浜松店",   packDone:5, packPlan:5, cashDone:5, cashPlan:5 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200012", storeNo:"121", storeName:"磐田店",   packDone:4, packPlan:4, cashDone:1, cashPlan:4 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200013", storeNo:"134", storeName:"袋井店",   packDone:0, packPlan:3, cashDone:0, cashPlan:3 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200014", storeNo:"146", storeName:"菊川店",   packDone:2, packPlan:2, cashDone:2, cashPlan:2 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200015", storeNo:"152", storeName:"御前崎店", packDone:2, packPlan:6, cashDone:6, cashPlan:6 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200016", storeNo:"163", storeName:"牧之原店", packDone:3, packPlan:3, cashDone:3, cashPlan:3 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200017", storeNo:"177", storeName:"伊東店",   packDone:1, packPlan:5, cashDone:2, cashPlan:5 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200018", storeNo:"188", storeName:"熱海店",   packDone:4, packPlan:4, cashDone:4, cashPlan:4 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200019", storeNo:"194", storeName:"下田店",   packDone:3, packPlan:6, cashDone:6, cashPlan:6 },
+      { shipDate:"2026-06-19", ffcShipmentNo:"F000200020", storeNo:"205", storeName:"伊豆店",   packDone:2, packPlan:2, cashDone:0, cashPlan:2 },
+
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200021", storeNo:"211", storeName:"長泉店",   packDone:6, packPlan:6, cashDone:6, cashPlan:6 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200022", storeNo:"222", storeName:"裾野店",   packDone:5, packPlan:5, cashDone:5, cashPlan:5 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200023", storeNo:"233", storeName:"御殿場店", packDone:4, packPlan:7, cashDone:3, cashPlan:7 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200024", storeNo:"244", storeName:"小山店",   packDone:0, packPlan:4, cashDone:0, cashPlan:4 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200025", storeNo:"255", storeName:"函南店",   packDone:4, packPlan:4, cashDone:1, cashPlan:4 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200026", storeNo:"266", storeName:"韮山店",   packDone:3, packPlan:3, cashDone:3, cashPlan:3 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200027", storeNo:"277", storeName:"修善寺店", packDone:1, packPlan:5, cashDone:5, cashPlan:5 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200028", storeNo:"288", storeName:"天城店",   packDone:2, packPlan:2, cashDone:2, cashPlan:2 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200029", storeNo:"299", storeName:"河津店",   packDone:2, packPlan:6, cashDone:4, cashPlan:6 },
+      { shipDate:"2026-06-20", ffcShipmentNo:"F000200030", storeNo:"310", storeName:"松崎店",   packDone:3, packPlan:3, cashDone:3, cashPlan:3 }
+    ];
+
+    let sortState = { key: "ffcShipmentNo", direction: "asc" };
+
+    function percent(done, plan) {
+      if (plan === 0) return "0%";
+      return Math.round((done / plan) * 100) + "%";
+    }
+
+    function isComplete(done, plan) {
+      return plan > 0 && done >= plan;
+    }
+
+    function initDateSelect() {
+      const select = document.getElementById("shipDate");
+      const dates = [...new Set(mockData.map(x => x.shipDate))].sort();
+      select.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+      select.value = dates[0];
+    }
+
+    function setSort(key) {
+      if (sortState.key === key) {
+        sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+      } else {
+        sortState.key = key;
+        sortState.direction = "asc";
+      }
+      renderDashboard();
+    }
+
+    function sortRows(rows) {
+      const key = sortState.key;
+      const direction = sortState.direction === "asc" ? 1 : -1;
+
+      return [...rows].sort((a, b) => {
+        let av, bv;
+
+        if (key === "packStatus") {
+          av = isComplete(a.packDone, a.packPlan) ? 1 : 0;
+          bv = isComplete(b.packDone, b.packPlan) ? 1 : 0;
+        } else if (key === "cashStatus") {
+          av = isComplete(a.cashDone, a.cashPlan) ? 1 : 0;
+          bv = isComplete(b.cashDone, b.cashPlan) ? 1 : 0;
+        } else if (key === "allStatus") {
+          av = isComplete(a.packDone, a.packPlan) && isComplete(a.cashDone, a.cashPlan) ? 1 : 0;
+          bv = isComplete(b.packDone, b.packPlan) && isComplete(b.cashDone, b.cashPlan) ? 1 : 0;
+        } else if (key === "storeNo") {
+          av = Number(a.storeNo);
+          bv = Number(b.storeNo);
+        } else {
+          av = String(a[key]);
+          bv = String(b[key]);
+        }
+
+        if (av < bv) return -1 * direction;
+        if (av > bv) return 1 * direction;
+        return String(a.ffcShipmentNo).localeCompare(String(b.ffcShipmentNo));
+      });
+    }
+
+    function updateSortMarks() {
+      document.querySelectorAll(".sort-mark").forEach(x => x.textContent = "");
+      const mark = document.getElementById("sort-" + sortState.key);
+      if (mark) mark.textContent = sortState.direction === "asc" ? "▲" : "▼";
+    }
+
+    function renderDashboard() {
+      const shipDate = document.getElementById("shipDate").value;
+      const rows = mockData.filter(x => x.shipDate === shipDate);
+      const sortedRows = sortRows(rows);
+
+      const storeCount = rows.length;
+      const packDoneStores = rows.filter(x => isComplete(x.packDone, x.packPlan)).length;
+      const cashDoneStores = rows.filter(x => isComplete(x.cashDone, x.cashPlan)).length;
+      const totalDoneStores = rows.filter(x =>
+        isComplete(x.packDone, x.packPlan) && isComplete(x.cashDone, x.cashPlan)
+      ).length;
+
+      document.getElementById("targetDateBadge").textContent = "対象出荷日：" + shipDate;
+
+      document.getElementById("packCount").textContent = `${packDoneStores}/${storeCount} 店舗`;
+      document.getElementById("cashCount").textContent = `${cashDoneStores}/${storeCount} 店舗`;
+      document.getElementById("totalCount").textContent = `${totalDoneStores}/${storeCount} 店舗`;
+
+      document.getElementById("packRate").textContent = percent(packDoneStores, storeCount);
+      document.getElementById("cashRate").textContent = percent(cashDoneStores, storeCount);
+      document.getElementById("totalRate").textContent = percent(totalDoneStores, storeCount);
+
+      const tbody = document.getElementById("dashboardBody");
+      tbody.innerHTML = "";
+
+      sortedRows.forEach(row => {
+        const packComplete = isComplete(row.packDone, row.packPlan);
+        const cashComplete = isComplete(row.cashDone, row.cashPlan);
+        const allComplete = packComplete && cashComplete;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.ffcShipmentNo}</td>
+          <td class="number">${row.storeNo}</td>
+          <td>${row.storeName}</td>
+          <td class="center ${packComplete ? "serial-complete" : "serial-incomplete"}">${row.packDone}/${row.packPlan}</td>
+          <td class="center ${cashComplete ? "serial-complete" : "serial-incomplete"}">${row.cashDone}/${row.cashPlan}</td>
+          <td class="center">
+            <span class="status ${allComplete ? "done" : "not-done"}">
+              ${allComplete ? "完了" : "未完"}
+            </span>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      updateSortMarks();
+    }
+
+    initDateSelect();
+    renderDashboard();
+  </script>
+</body>
+</html>
