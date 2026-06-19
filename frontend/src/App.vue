@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="flex h-full flex-col bg-[#f2f5f8] p-7 text-[#071d3a]">
     <header class="flex min-h-[96px] shrink-0 items-center justify-between gap-6 rounded-[14px] border border-[#d3dce6] bg-white px-6 py-4 shadow-sm">
       <div class="min-w-0">
@@ -10,8 +10,6 @@
           id="shipDate"
           type="date"
           v-model="selectedDate"
-          :min="dateMin"
-          :max="dateMax"
           class="h-14 w-[255px] rounded-[8px] border border-[#b9c7d8] bg-white px-5 text-[22px] outline-none focus:border-[#2563eb]"
           @change="loadDashboard"
         />
@@ -91,7 +89,6 @@ import { useAoiDashboard } from "./composables/useAoiDashboard"
 
 
 const {
-  dates,
   selectedDate,
   payload,
   loading,
@@ -105,9 +102,6 @@ const sortState = reactive({
   column: "ffc_shipment_no",
   direction: "asc",
 })
-
-const dateMin = computed(() => dates.value[0] || "")
-const dateMax = computed(() => dates.value[dates.value.length - 1] || "")
 
 const sortedRows = computed(() => {
   const direction = sortState.direction === "asc" ? 1 : -1
@@ -153,4 +147,3 @@ function statusClass(complete) {
   ]
 }
 </script>
-
