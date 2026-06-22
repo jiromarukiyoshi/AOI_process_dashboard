@@ -28,11 +28,14 @@
     <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-[#d3dce6] bg-white shadow-sm">
       <div class="flex min-h-[68px] shrink-0 items-center justify-between gap-6 border-b border-[#cbd6e2] px-5 py-3">
         <div class="text-[24px] font-bold">FFC出荷NO別 進捗詳細</div>
-        <div class="text-right text-[18px] text-[#475569]">
-          <span v-if="loading">読込中</span>
-          <span v-else-if="error">{{ error }}</span>
-          <span v-else-if="usingMock">デモデータ表示</span>
-          <span v-else>※「集合梱包」「釣銭機系」「全体ステータス」の見出しクリックで 完了／未完 ソート</span>
+        <div class="flex shrink-0 flex-col items-end gap-1 text-right text-[#475569]">
+          <div class="text-[18px] font-bold text-[#071d3a]">更新時刻：{{ lastUpdatedAt || "-" }}</div>
+          <div class="text-[16px]">
+            <span v-if="loading">読込中</span>
+            <span v-else-if="error">{{ error }}</span>
+            <span v-else-if="usingMock">デモデータ表示</span>
+            <span v-else>※「集合梱包」「釣銭機系」「全体ステータス」の見出しクリックで 完了／未完 ソート</span>
+          </div>
         </div>
       </div>
 
@@ -94,6 +97,7 @@ const {
   loading,
   error,
   usingMock,
+  lastUpdatedAt,
   hasRows,
   loadDashboard,
 } = useAoiDashboard()
