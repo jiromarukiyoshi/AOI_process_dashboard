@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 AOI_PROJECT_NO = "F0002"
 TRACE_SUMMARY_VIEW = "FCSEUC_TRACE_SUMMARY_V"
 COMPLETED_STATUS = "作業終了"
+EXCLUDED_STATUS = "削除"
 PACK_PRODUCT_CODES = {"FFC00000005", "FFC00000006", "10021052698", "10021052720"}
 CASH_PRODUCT_CODES = {
     "10022112247",
@@ -129,6 +130,10 @@ def build_dashboard_payload(source_rows, ship_date):
     shipments = defaultdict(new_shipment)
 
     for row in source_rows:
+        status_code = row["status_code"]
+        if status_code == EXCLUDED_STATUS:
+            continue
+
         shipment = shipments[row["ffc_shipment_no"]]
         shipment["ship_date"] = row["ship_date"]
         shipment["ffc_shipment_no"] = row["ffc_shipment_no"]
@@ -137,7 +142,7 @@ def build_dashboard_payload(source_rows, ship_date):
 
         product_code = str(row["product_code"])
         branch_no = str(row["branch_no"])
-        is_done = row["status_code"] == COMPLETED_STATUS
+        is_done = status_code == COMPLETED_STATUS
 
         if product_code in PACK_PRODUCT_CODES:
             shipment["pack_total"].add(branch_no)
