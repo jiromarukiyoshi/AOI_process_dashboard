@@ -1,9 +1,10 @@
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import axios from "../axios"
-import { buildMockPayload, mockDates } from "../mockData"
+import { buildMockPayload, buildMockSerialPayload, mockDates } from "../mockData"
 
 
 const SHIPMENT_DATE_STORAGE_KEY = "aoi-dashboard-shipment-date"
+const SHIPMENT_DATE_SAVED_ON_KEY = "aoi-dashboard-shipment-date-saved-on"
 const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
 
@@ -11,6 +12,7 @@ export function useAoiDashboard() {
   const dates = ref([])
   const selectedDate = ref("")
   const payload = ref(buildMockPayload())
+  const serialPayload = ref(buildMockSerialPayload())
   const loading = ref(false)
   const error = ref("")
   const usingMock = ref(false)
@@ -18,6 +20,7 @@ export function useAoiDashboard() {
   let autoRefreshTimer = null
 
   const hasRows = computed(() => payload.value.rows.length > 0)
+  const hasSerialRows = computed(() => serialPayload.value.rows.length > 0)
 
   async function loadDates() {
     try {
@@ -39,13 +42,20 @@ export function useAoiDashboard() {
     loading.value = true
     error.value = ""
     try {
-      const response = await axios.get("/api/aoi-dashboard/", {
-        params: { ship_date: selectedDate.value },
-      })
-      payload.value = response.data
+      const [dashboardResponse, serialResponse] = await Promise.all([
+        axios.get("/api/aoi-dashboard/", {
+          params: { ship_date: selectedDate.value },
+        }),
+        axios.get("/api/aoi-dashboard/serials/", {
+          params: { ship_date: selectedDate.value },
+        }),
+      ])
+      payload.value = dashboardResponse.data
+      serialPayload.value = serialResponse.data
       usingMock.value = false
     } catch (exc) {
       payload.value = buildMockPayload(selectedDate.value)
+      serialPayload.value = buildMockSerialPayload(selectedDate.value)
       usingMock.value = true
       error.value = "APIに接続できないためデモデータを表示しています。"
     } finally {
@@ -76,11 +86,13 @@ export function useAoiDashboard() {
     dates,
     selectedDate,
     payload,
+    serialPayload,
     loading,
     error,
     usingMock,
     lastUpdatedAt,
     hasRows,
+    hasSerialRows,
     loadDashboard,
   }
 }
@@ -102,6 +114,9 @@ function formatLocalDateTime(date) {
 function getStoredShipmentDate() {
   try {
     const value = localStorage.getItem(SHIPMENT_DATE_STORAGE_KEY)
+    const savedOn = localStorage.getItem(SHIPMENT_DATE_SAVED_ON_KEY)
+    const today = formatLocalDate(new Date())
+    if (savedOn !== today) return ""
     return /^\d{4}-\d{2}-\d{2}$/.test(value || "") ? value : ""
   } catch {
     return ""
@@ -112,6 +127,7 @@ function storeShipmentDate(value) {
   if (!value) return
   try {
     localStorage.setItem(SHIPMENT_DATE_STORAGE_KEY, value)
+    localStorage.setItem(SHIPMENT_DATE_SAVED_ON_KEY, formatLocalDate(new Date()))
   } catch {
     // Continue without persistence when browser storage is unavailable.
   }

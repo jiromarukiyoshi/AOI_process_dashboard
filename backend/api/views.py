@@ -15,6 +15,10 @@ AOI_PROJECT_NO = "F0002"
 TRACE_SUMMARY_VIEW = "FCSEUC_TRACE_SUMMARY_V"
 COMPLETED_STATUS = "作業終了"
 EXCLUDED_STATUS = "削除"
+INCOMPLETE_STATUS_LABEL = "未完"
+COMPLETE_STATUS_LABEL = "完了"
+PACK_CATEGORY = "集合梱包"
+CASH_CATEGORY = "釣銭機系"
 PACK_PRODUCT_CODES = {"FFC00000005", "FFC00000006", "10021052698", "10021052720"}
 CASH_PRODUCT_CODES = {
     "10022112247",
@@ -34,6 +38,7 @@ CASH_PRODUCT_CODES = {
     "13001222938",
     "13001222937",
 }
+TARGET_PRODUCT_CODES = PACK_PRODUCT_CODES | CASH_PRODUCT_CODES
 ORACLE_IDENTIFIER_RE = re.compile(r"^[A-Z][A-Z0-9_#$]*$")
 logger = logging.getLogger(__name__)
 
@@ -47,10 +52,10 @@ class ShipmentDatesView(APIView):
             with connection.cursor() as cursor:
                 cursor.execute(
                     f"""
-                    SELECT DISTINCT "FFC出荷日"
+                    SELECT DISTINCT TRUNC("FFC出荷日")
                     FROM {oracle_name(TRACE_SUMMARY_VIEW)}
                     WHERE "FFC案件NO" = :project_no
-                    ORDER BY "FFC出荷日"
+                    ORDER BY TRUNC("FFC出荷日")
                     """,
                     {"project_no": AOI_PROJECT_NO},
                 )
@@ -83,47 +88,71 @@ class AoiDashboardView(APIView):
             return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def fetch_source_rows(self, ship_date):
-        if settings.AOI_USE_MOCK_DATA:
-            rows = build_mock_source_rows()
-            if ship_date:
-                rows = [row for row in rows if row["ship_date"] == ship_date]
-            return rows
+        return fetch_source_rows(ship_date)
 
-        params = {"project_no": AOI_PROJECT_NO}
-        date_clause = ""
+
+class AoiSerialsView(APIView):
+    def get(self, request):
+        try:
+            ship_date = request.query_params.get("ship_date") or datetime.date.today().isoformat()
+            parse_date(ship_date)
+            rows = fetch_source_rows(ship_date)
+            return Response(build_serials_payload(rows, ship_date))
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.exception("Failed to fetch AOI serial rows.")
+            if not settings.AOI_USE_MOCK_DATA:
+                rows = [row for row in build_mock_source_rows() if row["ship_date"] == request.query_params.get("ship_date")]
+                if rows:
+                    return Response(build_serials_payload(rows, request.query_params.get("ship_date")))
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def fetch_source_rows(ship_date):
+    if settings.AOI_USE_MOCK_DATA:
+        rows = build_mock_source_rows()
         if ship_date:
-            date_clause = 'AND "FFC出荷日" = TO_DATE(:ship_date, \'YYYY-MM-DD\')'
-            params["ship_date"] = ship_date
+            rows = [row for row in rows if row["ship_date"] == ship_date]
+        return rows
 
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT
-                    "FFC出荷日",
-                    "FFC出荷NO",
-                    "枝番",
-                    "店舗番号",
-                    "店名",
-                    "製品コード",
-                    "ステータス（Fコード）"
-                FROM {oracle_name(TRACE_SUMMARY_VIEW)}
-                WHERE "FFC案件NO" = :project_no
-                {date_clause}
-                """,
-                params,
-            )
-            return [
-                {
-                    "ship_date": date_to_str(row[0]),
-                    "ffc_shipment_no": row[1],
-                    "branch_no": row[2],
-                    "store_no": row[3],
-                    "store_name": row[4],
-                    "product_code": row[5],
-                    "status_code": row[6],
-                }
-                for row in cursor.fetchall()
-            ]
+    params = {"project_no": AOI_PROJECT_NO}
+    date_clause = ""
+    if ship_date:
+        date_clause = 'AND TRUNC("FFC出荷日") = TO_DATE(:ship_date, \'YYYY-MM-DD\')'
+        params["ship_date"] = ship_date
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT
+                "FFC出荷日",
+                "FFC出荷NO",
+                "枝番",
+                "店舗番号",
+                "店名",
+                "製品コード",
+                "製品名(型番)",
+                "ステータス（Fコード）"
+            FROM {oracle_name(TRACE_SUMMARY_VIEW)}
+            WHERE "FFC案件NO" = :project_no
+            {date_clause}
+            """,
+            params,
+        )
+        return [
+            {
+                "ship_date": date_to_str(row[0]),
+                "ffc_shipment_no": row[1],
+                "branch_no": row[2],
+                "store_no": row[3],
+                "store_name": row[4],
+                "product_code": row[5],
+                "product_name": row[6],
+                "status_code": row[7],
+            }
+            for row in cursor.fetchall()
+        ]
 
 
 def build_dashboard_payload(source_rows, ship_date):
@@ -131,7 +160,8 @@ def build_dashboard_payload(source_rows, ship_date):
 
     for row in source_rows:
         status_code = row["status_code"]
-        if status_code == EXCLUDED_STATUS:
+        product_code = str(row["product_code"]).strip()
+        if status_code == EXCLUDED_STATUS or product_code not in TARGET_PRODUCT_CODES:
             continue
 
         shipment = shipments[row["ffc_shipment_no"]]
@@ -140,8 +170,7 @@ def build_dashboard_payload(source_rows, ship_date):
         shipment["store_no"] = row["store_no"]
         shipment["store_name"] = row["store_name"]
 
-        product_code = str(row["product_code"])
-        branch_no = str(row["branch_no"])
+        branch_no = str(row["branch_no"]).strip()
         is_done = status_code == COMPLETED_STATUS
 
         if product_code in PACK_PRODUCT_CODES:
@@ -170,7 +199,7 @@ def build_dashboard_payload(source_rows, ship_date):
                 "store_name": shipment["store_name"],
                 "pack": f"{pack_done}/{pack_total}",
                 "cash": f"{cash_done}/{cash_total}",
-                "status": "完了" if overall_complete else "未完",
+                "status": COMPLETE_STATUS_LABEL if overall_complete else INCOMPLETE_STATUS_LABEL,
                 "pack_done": pack_done,
                 "pack_total": pack_total,
                 "cash_done": cash_done,
@@ -196,6 +225,46 @@ def build_dashboard_payload(source_rows, ship_date):
         },
         "rows": response_rows,
     }
+
+
+def build_serials_payload(source_rows, ship_date):
+    response_rows = []
+
+    for row in source_rows:
+        product_code = str(row["product_code"]).strip()
+        status_code = row["status_code"]
+        category = product_category(product_code)
+        if not category or status_code == EXCLUDED_STATUS:
+            continue
+
+        response_rows.append(
+            {
+                "ship_date": row["ship_date"],
+                "ffc_shipment_no": row["ffc_shipment_no"],
+                "eda_no": str(row["branch_no"]).strip(),
+                "store_no": row["store_no"],
+                "store_name": row["store_name"],
+                "category": category,
+                "item_code": product_code,
+                "item_name": row.get("product_name") or "",
+                "status": COMPLETE_STATUS_LABEL if status_code == COMPLETED_STATUS else INCOMPLETE_STATUS_LABEL,
+            }
+        )
+
+    response_rows.sort(key=lambda item: (str(item["ffc_shipment_no"]), str(item["eda_no"]), str(item["item_code"])))
+    return {
+        "ship_date": ship_date,
+        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "rows": response_rows,
+    }
+
+
+def product_category(product_code):
+    if product_code in PACK_PRODUCT_CODES:
+        return PACK_CATEGORY
+    if product_code in CASH_PRODUCT_CODES:
+        return CASH_CATEGORY
+    return ""
 
 
 def new_shipment():
@@ -281,6 +350,7 @@ def build_mock_source_rows():
                 store_no,
                 store_name,
                 PACK_PRODUCT_CODES,
+                PACK_CATEGORY,
                 pack_done,
                 pack_total,
             )
@@ -292,6 +362,7 @@ def build_mock_source_rows():
                 store_no,
                 store_name,
                 CASH_PRODUCT_CODES,
+                CASH_CATEGORY,
                 cash_done,
                 cash_total,
             )
@@ -299,7 +370,7 @@ def build_mock_source_rows():
     return rows
 
 
-def build_category_rows(ship_date, shipment_no, store_no, store_name, product_codes, done, total):
+def build_category_rows(ship_date, shipment_no, store_no, store_name, product_codes, category, done, total):
     rows = []
     codes = sorted(product_codes)
     for index in range(1, total + 1):
@@ -314,6 +385,7 @@ def build_category_rows(ship_date, shipment_no, store_no, store_name, product_co
                     "store_no": store_no,
                     "store_name": store_name,
                     "product_code": product_code,
+                    "product_name": f"{category}_{product_code}",
                     "status_code": status_code,
                 }
             )

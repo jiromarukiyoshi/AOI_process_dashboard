@@ -33,6 +33,9 @@ const rows = {
   ],
 }
 
+const packCodes = ["FFC00000005", "FFC00000006"]
+const cashCodes = ["10022112247", "FFC00000009"]
+
 export function buildMockPayload(shipDate = mockDates[0]) {
   const tableRows = (rows[shipDate] || []).map(
     ([ffcShipmentNo, storeNo, storeName, packDone, packTotal, cashDone, cashTotal]) => {
@@ -70,6 +73,40 @@ export function buildMockPayload(shipDate = mockDates[0]) {
       overall: buildSummary(overallDone, total),
     },
     rows: tableRows,
+  }
+}
+
+export function buildMockSerialPayload(shipDate = mockDates[0]) {
+  const serialRows = []
+  for (const [ffcShipmentNo, storeNo, storeName, packDone, packTotal, cashDone, cashTotal] of rows[shipDate] || []) {
+    appendSerialRows(serialRows, shipDate, ffcShipmentNo, storeNo, storeName, "集合梱包", packCodes, packDone, packTotal)
+    appendSerialRows(serialRows, shipDate, ffcShipmentNo, storeNo, storeName, "釣銭機系", cashCodes, cashDone, cashTotal)
+  }
+
+  return {
+    ship_date: shipDate,
+    updated_at: "",
+    rows: serialRows,
+  }
+}
+
+function appendSerialRows(target, shipDate, ffcShipmentNo, storeNo, storeName, category, codes, done, total) {
+  for (let index = 1; index <= total; index += 1) {
+    const status = index <= done ? "完了" : "未完"
+    const edaNo = String(index).padStart(3, "0")
+    for (const itemCode of codes) {
+      target.push({
+        ship_date: shipDate,
+        ffc_shipment_no: ffcShipmentNo,
+        eda_no: edaNo,
+        store_no: storeNo,
+        store_name: storeName,
+        category,
+        item_code: itemCode,
+        item_name: `${category}_${itemCode}`,
+        status,
+      })
+    }
   }
 }
 
