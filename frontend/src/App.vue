@@ -90,26 +90,19 @@
         <StatusInfo :loading="loading" :error="error" :using-mock="usingMock" :last-updated-at="lastUpdatedAt" />
       </div>
 
-      <div class="grid shrink-0 grid-cols-8 gap-3 border-b border-[#d9e2ec] bg-[#f8fafc] px-4 py-4 text-[16px]">
-        <label v-for="filter in serialFilters" :key="filter.key" class="flex min-w-0 flex-col gap-1 font-bold text-[#29405f]">
-          <span>{{ filter.label }}</span>
-          <select
-            v-if="filter.type === 'select'"
-            v-model="serialFilterState[filter.key]"
-            class="h-11 rounded-[8px] border border-[#b9c7d8] bg-white px-3 text-[18px] font-medium outline-none focus:border-[#2563eb]"
-          >
-            <option v-for="option in filter.options" :key="option" :value="option">{{ option }}</option>
-          </select>
-          <input
-            v-else
-            v-model.trim="serialFilterState[filter.key]"
-            type="text"
-            class="h-11 rounded-[8px] border border-[#b9c7d8] bg-white px-3 text-[18px] font-medium outline-none focus:border-[#2563eb]"
-          />
-        </label>
-      </div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <div class="grid min-w-[1900px] grid-cols-[10%_13%_7%_8%_14%_10%_12%_19%_7%] border-b border-[#d9e2ec] bg-[#f8fafc] text-[16px]">
+          <div aria-hidden="true" class="px-3 py-4"></div>
+          <FilterField label="FFC出荷NO" v-model="serialFilterState.ffc_shipment_no" />
+          <div aria-hidden="true" class="px-3 py-4"></div>
+          <FilterField label="店番" v-model="serialFilterState.store_no" />
+          <FilterField label="店舗名" v-model="serialFilterState.store_name" />
+          <FilterField label="区分" v-model="serialFilterState.category" type="select" :options="['すべて', '集合梱包', '釣銭機系']" />
+          <FilterField label="製品コード" v-model="serialFilterState.item_code" />
+          <FilterField label="製品名" v-model="serialFilterState.item_name" />
+          <FilterField label="ステータス" v-model="serialFilterState.status" type="select" :options="['すべて', '完了', '未完']" />
+        </div>
 
-      <div class="flex min-h-0 flex-1 overflow-auto">
         <table class="w-full min-w-[1900px] table-fixed border-separate border-spacing-0 text-[20px]">
           <colgroup>
             <col class="w-[10%]" />
@@ -180,6 +173,34 @@ const {
   loadDashboard,
 } = useAoiDashboard()
 
+const FilterField = {
+  props: {
+    label: { type: String, required: true },
+    modelValue: { type: String, default: "" },
+    type: { type: String, default: "text" },
+    options: { type: Array, default: () => [] },
+  },
+  emits: ["update:modelValue"],
+  template: `<label class="flex min-w-0 flex-col gap-1 px-3 py-4 font-bold text-[#29405f]">
+    <span>{{ label }}</span>
+    <select
+      v-if="type === 'select'"
+      :value="modelValue"
+      class="h-11 w-full rounded-[8px] border border-[#b9c7d8] bg-white px-3 text-[18px] font-medium outline-none focus:border-[#2563eb]"
+      @change="$emit('update:modelValue', $event.target.value)"
+    >
+      <option v-for="option in options" :key="option" :value="option">{{ option }}</option>
+    </select>
+    <input
+      v-else
+      :value="modelValue"
+      type="text"
+      class="h-11 w-full rounded-[8px] border border-[#b9c7d8] bg-white px-3 text-[18px] font-medium outline-none focus:border-[#2563eb]"
+      @input="$emit('update:modelValue', $event.target.value.trim())"
+    />
+  </label>`,
+}
+
 const StatusInfo = {
   props: {
     loading: Boolean,
@@ -216,7 +237,6 @@ const serialSort = reactive({
 })
 
 const serialFilterState = reactive({
-  ship_date: "",
   ffc_shipment_no: "",
   store_no: "",
   store_name: "",
@@ -227,14 +247,13 @@ const serialFilterState = reactive({
 })
 
 const serialFilters = [
-  { key: "ship_date", label: "出荷日", type: "text" },
-  { key: "ffc_shipment_no", label: "FFC出荷NO", type: "text" },
-  { key: "store_no", label: "店番", type: "text" },
-  { key: "store_name", label: "店舗名", type: "text" },
-  { key: "item_code", label: "製品コード", type: "text" },
-  { key: "item_name", label: "製品名", type: "text" },
-  { key: "category", label: "区分", type: "select", options: ["すべて", "集合梱包", "釣銭機系"] },
-  { key: "status", label: "ステータス", type: "select", options: ["すべて", "完了", "未完"] },
+  { key: "ffc_shipment_no", type: "text" },
+  { key: "store_no", type: "text" },
+  { key: "store_name", type: "text" },
+  { key: "item_code", type: "text" },
+  { key: "item_name", type: "text" },
+  { key: "category", type: "select" },
+  { key: "status", type: "select" },
 ]
 
 const sortedProgressRows = computed(() => {
