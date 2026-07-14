@@ -90,11 +90,11 @@
         <StatusInfo :loading="loading" :error="error" :using-mock="usingMock" :last-updated-at="lastUpdatedAt" />
       </div>
 
-      <div class="min-h-0 flex-1 overflow-auto">
-        <div class="grid min-w-[1900px] grid-cols-[10%_13%_7%_8%_14%_10%_12%_19%_7%] border-b border-[#d9e2ec] bg-[#f8fafc] text-[16px]">
+      <div class="shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#d9e2ec] bg-[#f8fafc]">
+        <div class="grid min-w-[1900px] grid-cols-[10%_13%_7%_8%_14%_10%_12%_19%_7%] text-[16px]">
           <div aria-hidden="true" class="px-3 py-4"></div>
           <FilterField label="FFC出荷NO" v-model="serialFilterState.ffc_shipment_no" />
-          <div aria-hidden="true" class="px-3 py-4"></div>
+          <FilterField label="枝番" v-model="serialFilterState.eda_no" />
           <FilterField label="店番" v-model="serialFilterState.store_no" />
           <FilterField label="店舗名" v-model="serialFilterState.store_name" />
           <FilterField label="区分" v-model="serialFilterState.category" type="select" :options="['すべて', '集合梱包', '釣銭機系']" />
@@ -102,7 +102,9 @@
           <FilterField label="製品名" v-model="serialFilterState.item_name" />
           <FilterField label="ステータス" v-model="serialFilterState.status" type="select" :options="['すべて', '完了', '未完']" />
         </div>
+      </div>
 
+      <div class="min-h-0 flex-1 overflow-auto">
         <table class="w-full min-w-[1900px] table-fixed border-separate border-spacing-0 text-[20px]">
           <colgroup>
             <col class="w-[10%]" />
@@ -238,6 +240,7 @@ const serialSort = reactive({
 
 const serialFilterState = reactive({
   ffc_shipment_no: "",
+  eda_no: "",
   store_no: "",
   store_name: "",
   item_code: "",
@@ -248,6 +251,7 @@ const serialFilterState = reactive({
 
 const serialFilters = [
   { key: "ffc_shipment_no", type: "text" },
+  { key: "eda_no", type: "text" },
   { key: "store_no", type: "text" },
   { key: "store_name", type: "text" },
   { key: "item_code", type: "text" },
