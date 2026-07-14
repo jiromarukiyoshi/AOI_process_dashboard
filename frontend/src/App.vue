@@ -93,14 +93,46 @@
       <div class="shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#d9e2ec] bg-[#f8fafc]">
         <div class="grid min-w-[1900px] grid-cols-[10%_13%_7%_8%_14%_10%_12%_19%_7%] text-[16px]">
           <div aria-hidden="true" class="px-3 py-4"></div>
-          <FilterField label="FFC出荷NO" v-model="serialFilterState.ffc_shipment_no" />
-          <FilterField label="枝番" v-model="serialFilterState.eda_no" />
-          <FilterField label="店番" v-model="serialFilterState.store_no" />
-          <FilterField label="店舗名" v-model="serialFilterState.store_name" />
-          <FilterField label="区分" v-model="serialFilterState.category" type="select" :options="['すべて', '集合梱包', '釣銭機系']" />
-          <FilterField label="製品コード" v-model="serialFilterState.item_code" />
-          <FilterField label="製品名" v-model="serialFilterState.item_name" />
-          <FilterField label="ステータス" v-model="serialFilterState.status" type="select" :options="['すべて', '完了', '未完']" />
+          <label class="filter-field">
+            <span>FFC出荷NO</span>
+            <input v-model.trim="serialFilterState.ffc_shipment_no" type="text" class="filter-input" />
+          </label>
+          <label class="filter-field">
+            <span>枝番</span>
+            <input v-model.trim="serialFilterState.eda_no" type="text" class="filter-input" />
+          </label>
+          <label class="filter-field">
+            <span>店番</span>
+            <input v-model.trim="serialFilterState.store_no" type="text" class="filter-input" />
+          </label>
+          <label class="filter-field">
+            <span>店舗名</span>
+            <input v-model.trim="serialFilterState.store_name" type="text" class="filter-input" />
+          </label>
+          <label class="filter-field">
+            <span>区分</span>
+            <select v-model="serialFilterState.category" class="filter-input">
+              <option value="すべて">すべて</option>
+              <option value="集合梱包">集合梱包</option>
+              <option value="釣銭機系">釣銭機系</option>
+            </select>
+          </label>
+          <label class="filter-field">
+            <span>製品コード</span>
+            <input v-model.trim="serialFilterState.item_code" type="text" class="filter-input" />
+          </label>
+          <label class="filter-field">
+            <span>製品名</span>
+            <input v-model.trim="serialFilterState.item_name" type="text" class="filter-input" />
+          </label>
+          <label class="filter-field">
+            <span>ステータス</span>
+            <select v-model="serialFilterState.status" class="filter-input">
+              <option value="すべて">すべて</option>
+              <option value="完了">完了</option>
+              <option value="未完">未完</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -174,34 +206,6 @@ const {
   hasRows,
   loadDashboard,
 } = useAoiDashboard()
-
-const FilterField = {
-  props: {
-    label: { type: String, required: true },
-    modelValue: { type: String, default: "" },
-    type: { type: String, default: "text" },
-    options: { type: Array, default: () => [] },
-  },
-  emits: ["update:modelValue"],
-  template: `<label class="flex min-w-0 flex-col gap-1 px-3 py-4 font-bold text-[#29405f]">
-    <span>{{ label }}</span>
-    <select
-      v-if="type === 'select'"
-      :value="modelValue"
-      class="h-11 w-full rounded-[8px] border border-[#b9c7d8] bg-white px-3 text-[18px] font-medium outline-none focus:border-[#2563eb]"
-      @change="$emit('update:modelValue', $event.target.value)"
-    >
-      <option v-for="option in options" :key="option" :value="option">{{ option }}</option>
-    </select>
-    <input
-      v-else
-      :value="modelValue"
-      type="text"
-      class="h-11 w-full rounded-[8px] border border-[#b9c7d8] bg-white px-3 text-[18px] font-medium outline-none focus:border-[#2563eb]"
-      @input="$emit('update:modelValue', $event.target.value.trim())"
-    />
-  </label>`,
-}
 
 const StatusInfo = {
   props: {
@@ -348,6 +352,31 @@ function serialRowKey(row) {
 </script>
 
 <style scoped>
+.filter-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  font-weight: 700;
+  color: #29405f;
+}
+
+.filter-input {
+  height: 44px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #b9c7d8;
+  background: #fff;
+  padding: 0 12px;
+  font-size: 18px;
+  font-weight: 500;
+  outline: none;
+}
+
+.filter-input:focus {
+  border-color: #2563eb;
+}
 .table-cell-main {
   height: 76px;
   border-right: 1px solid #d9e2ec;
